@@ -1,10 +1,10 @@
 /**
- * Format a number as currency
+ * Format a number as currency (KES)
  */
 export const formatCurrency = (amount: number): string => {
-  return new Intl.NumberFormat('en-US', {
+  return new Intl.NumberFormat('en-KE', {
     style: 'currency',
-    currency: 'USD',
+    currency: 'KES',
     minimumFractionDigits: 2,
     maximumFractionDigits: 2
   }).format(amount);
@@ -15,7 +15,7 @@ export const formatCurrency = (amount: number): string => {
  */
 export const formatDate = (dateString: string): string => {
   const date = new Date(dateString);
-  return new Intl.DateTimeFormat('en-US', {
+  return new Intl.DateTimeFormat('en-KE', {
     year: 'numeric',
     month: 'short',
     day: 'numeric'

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Mic, Camera, Plus } from 'lucide-react';
+import { X, Mic, Camera, Plus, XCircle } from 'lucide-react';
 import Button from '../ui/Button';
 import Input from '../ui/Input';
 import Select from '../ui/Select';
@@ -111,12 +111,22 @@ const TransactionModal: React.FC<TransactionModalProps> = ({
       >
         <div className="flex justify-between items-center mb-6">
           <h2 className="text-title font-bold">Add Transaction</h2>
-          <button 
-            onClick={handleClose}
-            className="p-1 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-          >
-            <X size={20} />
-          </button>
+          <div className="flex items-center space-x-2">
+            <button 
+              onClick={resetForm}
+              className="p-2 rounded-full hover:bg-red-100 dark:hover:bg-red-900/30 text-error-500 transition-colors"
+              title="Clear form"
+            >
+              <XCircle size={20} />
+            </button>
+            <button 
+              onClick={handleClose}
+              className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+              title="Close modal"
+            >
+              <X size={20} />
+            </button>
+          </div>
         </div>
         
         {/* Input method tabs */}
@@ -170,7 +180,7 @@ const TransactionModal: React.FC<TransactionModalProps> = ({
                   <div className="flex-1">
                     <Input
                       type="number"
-                      label="Amount"
+                      label="Amount (KES)"
                       value={amount}
                       onChange={(e) => setAmount(e.target.value)}
                       error={errors.amount}
@@ -237,7 +247,7 @@ const TransactionModal: React.FC<TransactionModalProps> = ({
                   Start Recording
                 </Button>
                 <div className="mt-8 text-sm text-text-secondary dark:text-gray-400">
-                  Say something like: "Add $45 for groceries yesterday"
+                  Say something like: "Add KES 4500 for groceries yesterday"
                 </div>
               </div>
             )}

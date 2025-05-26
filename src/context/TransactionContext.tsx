@@ -1,12 +1,13 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { Transaction, FinancialSummary, ChartData } from '../types';
-import { mockTransactions } from '../data/mockData';
+import { supabase } from '../lib/supabase';
+import { useAuth } from './AuthContext';
 
 interface TransactionContextType {
   transactions: Transaction[];
-  addTransaction: (transaction: Omit<Transaction, 'id'>) => void;
-  deleteTransaction: (id: string) => void;
-  updateTransaction: (id: string, transaction: Partial<Transaction>) => void;
+  addTransaction: (transaction: Omit<Transaction, 'id'>) => Promise<void>;
+  deleteTransaction: (id: string) => Promise<void>;
+  updateTransaction: (id: string, transaction: Partial<Transaction>) => Promise<void>;
   summary: FinancialSummary;
   expensesByCategory: ChartData;
   monthlyBalance: ChartData;
@@ -25,30 +26,42 @@ const TransactionContext = createContext<TransactionContextType | undefined>(und
 
 export const TransactionProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
-  
-  // Initialize with mock data
+  const { user } = useAuth();
+
   useEffect(() => {
-    const storedTransactions = localStorage.getItem('transactions');
-    if (storedTransactions) {
-      setTransactions(JSON.parse(storedTransactions));
+    if (user) {
+      fetchTransactions();
     } else {
-      setTransactions(mockTransactions);
-      localStorage.setItem('transactions', JSON.stringify(mockTransactions));
+      setTransactions([]);
     }
-  }, []);
+  }, [user]);
+
+  const fetchTransactions = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('transactions')
+        .select('*')
+        .order('date', { ascending: false });
+
+      if (error) throw error;
+      setTransactions(data || []);
+    } catch (error) {
+      console.error('Error fetching transactions:', error);
+    }
+  };
 
   // Calculate financial summary
   const summary: FinancialSummary = {
     totalIncome: transactions
       .filter(t => t.type === 'income')
-      .reduce((sum, t) => sum + t.amount, 0),
+      .reduce((sum, t) => sum + Number(t.amount), 0),
     
     totalExpense: transactions
       .filter(t => t.type === 'expense')
-      .reduce((sum, t) => sum + t.amount, 0),
+      .reduce((sum, t) => sum + Number(t.amount), 0),
     
     balance: transactions
-      .reduce((sum, t) => t.type === 'income' ? sum + t.amount : sum - t.amount, 0),
+      .reduce((sum, t) => t.type === 'income' ? sum + Number(t.amount) : sum - Number(t.amount), 0),
     
     recentTransactions: [...transactions]
       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
@@ -65,7 +78,7 @@ export const TransactionProvider: React.FC<{ children: React.ReactNode }> = ({ c
   const expenseCategories = transactions
     .filter(t => t.type === 'expense')
     .reduce((acc, t) => {
-      acc[t.category] = (acc[t.category] || 0) + t.amount;
+      acc[t.category] = (acc[t.category] || 0) + Number(t.amount);
       return acc;
     }, {} as Record<string, number>);
 
@@ -100,49 +113,60 @@ export const TransactionProvider: React.FC<{ children: React.ReactNode }> = ({ c
     });
 
     const balance = monthTransactions.reduce((sum, t) => 
-      t.type === 'income' ? sum + t.amount : sum - t.amount, 0);
+      t.type === 'income' ? sum + Number(t.amount) : sum - Number(t.amount), 0);
 
     monthlyBalance.labels.push(label);
     monthlyBalance.values.push(balance);
   });
 
-  const addTransaction = (transaction: Omit<Transaction, 'id'>) => {
-    const newTransaction = {
-      ...transaction,
-      id: Math.random().toString(36).substring(2, 9)
-    };
-    const updatedTransactions = [...transactions, newTransaction];
-    setTransactions(updatedTransactions);
-    localStorage.setItem('transactions', JSON.stringify(updatedTransactions));
+  const addTransaction = async (transaction: Omit<Transaction, 'id'>) => {
+    try {
+      const { error } = await supabase
+        .from('transactions')
+        .insert([{ ...transaction, user_id: user?.id }]);
+
+      if (error) throw error;
+      await fetchTransactions();
+    } catch (error) {
+      console.error('Error adding transaction:', error);
+    }
   };
 
-  const deleteTransaction = (id: string) => {
-    const updatedTransactions = transactions.filter(t => t.id !== id);
-    setTransactions(updatedTransactions);
-    localStorage.setItem('transactions', JSON.stringify(updatedTransactions));
+  const deleteTransaction = async (id: string) => {
+    try {
+      const { error } = await supabase
+        .from('transactions')
+        .delete()
+        .eq('id', id);
+
+      if (error) throw error;
+      await fetchTransactions();
+    } catch (error) {
+      console.error('Error deleting transaction:', error);
+    }
   };
 
-  const updateTransaction = (id: string, transaction: Partial<Transaction>) => {
-    const updatedTransactions = transactions.map(t => 
-      t.id === id ? { ...t, ...transaction } : t
-    );
-    setTransactions(updatedTransactions);
-    localStorage.setItem('transactions', JSON.stringify(updatedTransactions));
+  const updateTransaction = async (id: string, transaction: Partial<Transaction>) => {
+    try {
+      const { error } = await supabase
+        .from('transactions')
+        .update(transaction)
+        .eq('id', id);
+
+      if (error) throw error;
+      await fetchTransactions();
+    } catch (error) {
+      console.error('Error updating transaction:', error);
+    }
   };
 
   const filterTransactions = (filters: TransactionFilters) => {
     return transactions.filter(t => {
-      // Filter by type
       if (filters.type && t.type !== filters.type) return false;
-      
-      // Filter by category
       if (filters.category && t.category !== filters.category) return false;
-      
-      // Filter by date range
       if (filters.startDate && new Date(t.date) < new Date(filters.startDate)) return false;
       if (filters.endDate && new Date(t.date) > new Date(filters.endDate)) return false;
       
-      // Filter by search term
       if (filters.searchTerm) {
         const term = filters.searchTerm.toLowerCase();
         const matchesNote = t.note?.toLowerCase().includes(term) || false;
